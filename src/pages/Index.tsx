@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 
-type Page = "home" | "games" | "achievements" | "rating" | "settings" | "help";
+type Page = "home" | "games" | "achievements" | "rating" | "settings" | "help" | "fastcount";
 
 const SUBJECTS = [
   { id: "math", name: "Математика", emoji: "🧮", color: "hsl(var(--game-blue))", xp: 840, maxXp: 1000, level: 7 },
@@ -109,7 +109,7 @@ function NavBar({ active, onChange }: { active: Page; onChange: (p: Page) => voi
   );
 }
 
-function HomePage() {
+function HomePage({ onPlay }: { onPlay: () => void }) {
   const totalXp = 3240;
   const levelXp = 3200;
   const nextLevelXp = 3600;
@@ -237,6 +237,7 @@ function HomePage() {
               </div>
             </div>
             <button
+              onClick={onPlay}
               className="shrink-0 px-4 py-2 rounded-xl font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
               style={{
                 background: "linear-gradient(135deg, hsl(var(--game-orange)), hsl(38 100% 45%))",
@@ -254,7 +255,7 @@ function HomePage() {
   );
 }
 
-function GamesPage() {
+function GamesPage({ onPlay }: { onPlay: () => void }) {
   return (
     <div className="space-y-4">
       <div>
@@ -265,13 +266,19 @@ function GamesPage() {
         {GAMES.map((game, i) => (
           <div
             key={game.id}
-            className="game-card overflow-hidden cursor-pointer animate-fade-in"
+            onClick={game.id === 1 ? onPlay : undefined}
+            className={`game-card overflow-hidden animate-fade-in ${game.id === 1 ? "cursor-pointer" : "cursor-default opacity-80"}`}
             style={{ animationDelay: `${i * 80}ms` }}
           >
             <div
-              className={`h-24 bg-gradient-to-br ${game.color} flex items-center justify-center text-5xl`}
+              className={`h-24 bg-gradient-to-br ${game.color} flex items-center justify-center text-5xl relative`}
             >
               {game.emoji}
+              {game.id !== 1 && (
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                  <span className="text-white text-xs font-bold bg-black/40 px-2 py-1 rounded-full">Скоро</span>
+                </div>
+              )}
             </div>
             <div className="p-3">
               <h3 className="font-russo text-sm text-foreground leading-tight">{game.title}</h3>
@@ -627,16 +634,279 @@ function HelpPage() {
   );
 }
 
+type GamePhase = "intro" | "playing" | "result";
+
+function generateQuestion() {
+  const base = Math.random() < 0.5 ? 2 : 3;
+  const num = Math.floor(Math.random() * 10) + 1;
+  const answer = base * num;
+  const wrongs = new Set<number>();
+  while (wrongs.size < 3) {
+    const delta = Math.floor(Math.random() * 5) + 1;
+    const wrong = answer + (Math.random() < 0.5 ? delta : -delta);
+    if (wrong !== answer && wrong > 0) wrongs.add(wrong);
+  }
+  const options = [answer, ...Array.from(wrongs)].sort(() => Math.random() - 0.5);
+  return { base, num, answer, options };
+}
+
+type Question = ReturnType<typeof generateQuestion>;
+
+function FastCountGame({ onBack }: { onBack: () => void }) {
+  const TOTAL_TIME = 60;
+  const TOTAL_QUESTIONS = 10;
+
+  const [phase, setPhase] = useState<GamePhase>("intro");
+  const [question, setQuestion] = useState<Question>(generateQuestion());
+  const [questionNum, setQuestionNum] = useState(1);
+  const [score, setScore] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(TOTAL_TIME);
+  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [xpEarned, setXpEarned] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [maxCombo, setMaxCombo] = useState(0);
+
+  useEffect(() => {
+    if (phase !== "playing") return;
+    if (timeLeft <= 0) { setPhase("result"); return; }
+    const t = setInterval(() => setTimeLeft((p) => p - 1), 1000);
+    return () => clearInterval(t);
+  }, [phase, timeLeft]);
+
+  function startGame() {
+    setPhase("playing");
+    setQuestion(generateQuestion());
+    setQuestionNum(1);
+    setScore(0);
+    setTimeLeft(TOTAL_TIME);
+    setFeedback(null);
+    setSelectedOption(null);
+    setXpEarned(0);
+    setCombo(0);
+    setMaxCombo(0);
+  }
+
+  function handleAnswer(opt: number) {
+    if (feedback !== null) return;
+    setSelectedOption(opt);
+    const isCorrect = opt === question.answer;
+    setFeedback(isCorrect ? "correct" : "wrong");
+
+    if (isCorrect) {
+      const newCombo = combo + 1;
+      setCombo(newCombo);
+      if (newCombo > maxCombo) setMaxCombo(newCombo);
+      const bonus = newCombo >= 3 ? 15 : 10;
+      setScore((s) => s + 1);
+      setXpEarned((x) => x + bonus);
+    } else {
+      setCombo(0);
+    }
+
+    setTimeout(() => {
+      if (questionNum >= TOTAL_QUESTIONS) {
+        setPhase("result");
+      } else {
+        setQuestion(generateQuestion());
+        setQuestionNum((n) => n + 1);
+        setFeedback(null);
+        setSelectedOption(null);
+      }
+    }, 700);
+  }
+
+  const timerPct = (timeLeft / TOTAL_TIME) * 100;
+  const timerColor = timeLeft > 20 ? "hsl(var(--game-green))" : timeLeft > 10 ? "hsl(var(--game-orange))" : "hsl(var(--game-red))";
+
+  if (phase === "intro") {
+    return (
+      <div className="space-y-5 animate-fade-in">
+        <button onClick={onBack} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+          <Icon name="ArrowLeft" size={18} /> Назад
+        </button>
+        <div className="game-card p-6 text-center stars-bg">
+          <div className="text-7xl mb-4 animate-float">⚡</div>
+          <h2 className="font-russo text-2xl text-foreground mb-2">Быстрый счёт</h2>
+          <p className="text-muted-foreground mb-1">Таблица умножения на 2 и 3</p>
+          <p className="text-muted-foreground text-sm mb-6">10 вопросов · 60 секунд</p>
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {[
+              { emoji: "❓", label: "10 вопросов" },
+              { emoji: "⏱️", label: "60 секунд" },
+              { emoji: "⚡", label: "до 150 XP" },
+            ].map((s) => (
+              <div key={s.label} className="bg-muted/50 rounded-2xl p-3 text-center">
+                <div className="text-2xl mb-1">{s.emoji}</div>
+                <p className="text-xs font-bold text-foreground">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="bg-muted/40 rounded-2xl p-3 mb-6 text-left space-y-1.5">
+            <p className="text-xs text-muted-foreground flex items-center gap-2"><span>🔥</span> Комбо 3+ даёт бонусные +5 XP за ответ</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-2"><span>✅</span> За каждый верный ответ +10 XP</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-2"><span>⏰</span> Если время вышло — игра заканчивается</p>
+          </div>
+          <button
+            onClick={startGame}
+            className="w-full py-4 rounded-2xl font-russo text-lg text-white transition-all hover:scale-105 active:scale-95"
+            style={{ background: "linear-gradient(135deg, hsl(var(--game-blue)), hsl(var(--primary)))" }}
+          >
+            Начать игру!
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "result") {
+    const accuracy = Math.round((score / questionNum) * 100);
+    const stars = score >= 9 ? 3 : score >= 6 ? 2 : score >= 3 ? 1 : 0;
+    return (
+      <div className="space-y-5 animate-fade-in">
+        <div className="game-card p-6 text-center stars-bg">
+          <div className="text-6xl mb-2 animate-bounce-in">{stars === 3 ? "🏆" : stars === 2 ? "🥈" : stars === 1 ? "🥉" : "😅"}</div>
+          <div className="flex justify-center gap-1 mb-3">
+            {[1, 2, 3].map((s) => (
+              <span key={s} className={`text-3xl transition-all ${s <= stars ? "opacity-100" : "opacity-20"}`}>⭐</span>
+            ))}
+          </div>
+          <h2 className="font-russo text-2xl text-foreground mb-1">
+            {stars === 3 ? "Отлично!" : stars === 2 ? "Хорошо!" : stars === 1 ? "Неплохо!" : "Попробуй ещё!"}
+          </h2>
+          <p className="text-muted-foreground text-sm mb-5">Результаты игры</p>
+
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            {[
+              { label: "Верных ответов", value: `${score}/${questionNum}`, color: "hsl(var(--game-green))" },
+              { label: "Точность", value: `${accuracy}%`, color: "hsl(var(--game-blue))" },
+              { label: "Макс. комбо", value: `x${maxCombo}`, color: "hsl(var(--game-orange))" },
+              { label: "XP заработано", value: `+${xpEarned}`, color: "hsl(var(--primary))" },
+            ].map((s) => (
+              <div key={s.label} className="bg-muted/50 rounded-2xl p-3 text-center">
+                <p className="font-russo text-xl" style={{ color: s.color }}>{s.value}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={onBack}
+              className="flex-1 py-3 rounded-2xl font-bold text-sm text-foreground border border-border hover:bg-muted transition-colors"
+            >
+              К играм
+            </button>
+            <button
+              onClick={startGame}
+              className="flex-1 py-3 rounded-2xl font-russo text-sm text-white transition-all hover:scale-105 active:scale-95"
+              style={{ background: "linear-gradient(135deg, hsl(var(--game-blue)), hsl(var(--primary)))" }}
+            >
+              Сыграть ещё
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-sm">
+          <Icon name="ArrowLeft" size={16} /> Выйти
+        </button>
+        <div className="flex items-center gap-3">
+          {combo >= 3 && (
+            <span className="text-xs font-bold text-game-orange animate-pulse">🔥 Комбо x{combo}!</span>
+          )}
+          <span className="text-sm font-bold text-primary">+{xpEarned} XP</span>
+        </div>
+      </div>
+
+      <div className="game-card p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-bold text-muted-foreground">Вопрос {questionNum}/{TOTAL_QUESTIONS}</span>
+          <span className="font-russo text-sm" style={{ color: timerColor }}>⏱ {timeLeft}с</span>
+        </div>
+        <div className="xp-bar h-2.5 w-full mb-1">
+          <div
+            className="h-full rounded-full transition-all duration-1000"
+            style={{ width: `${timerPct}%`, background: timerColor }}
+          />
+        </div>
+        <div className="xp-bar h-1.5 w-full mt-2">
+          <div
+            className="h-full rounded-full transition-all duration-300"
+            style={{ width: `${((questionNum - 1) / TOTAL_QUESTIONS) * 100}%`, background: "hsl(var(--primary))" }}
+          />
+        </div>
+      </div>
+
+      <div className="game-card p-8 text-center stars-bg">
+        <p className="text-muted-foreground text-sm mb-3 font-nunito">Сколько будет?</p>
+        <p className="font-russo text-5xl text-foreground mb-1">
+          {question.base} × {question.num} = ?
+        </p>
+        <p className="text-muted-foreground text-sm">
+          {question.base === 2 ? "Таблица на 2" : "Таблица на 3"}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {question.options.map((opt) => {
+          const isSelected = selectedOption === opt;
+          const isCorrect = opt === question.answer;
+          let bg = "hsl(var(--card))";
+          let border = "hsl(var(--border))";
+          let textColor = "hsl(var(--foreground))";
+          if (isSelected && feedback === "correct") { bg = "hsl(var(--game-green) / 0.15)"; border = "hsl(var(--game-green))"; textColor = "hsl(var(--game-green))"; }
+          if (isSelected && feedback === "wrong") { bg = "hsl(var(--game-red) / 0.15)"; border = "hsl(var(--game-red))"; textColor = "hsl(var(--game-red))"; }
+          if (!isSelected && feedback !== null && isCorrect) { bg = "hsl(var(--game-green) / 0.1)"; border = "hsl(var(--game-green) / 0.6)"; }
+          return (
+            <button
+              key={opt}
+              onClick={() => handleAnswer(opt)}
+              disabled={feedback !== null}
+              className="py-5 rounded-2xl font-russo text-2xl transition-all duration-200 hover:scale-105 active:scale-95 disabled:cursor-default border-2"
+              style={{ background: bg, borderColor: border, color: textColor }}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex justify-center gap-1 mt-2">
+        {Array.from({ length: TOTAL_QUESTIONS }).map((_, i) => (
+          <div
+            key={i}
+            className="w-2 h-2 rounded-full transition-all"
+            style={{
+              background: i < questionNum - 1
+                ? "hsl(var(--game-green))"
+                : i === questionNum - 1
+                ? "hsl(var(--primary))"
+                : "hsl(var(--muted))",
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Index() {
   const [page, setPage] = useState<Page>("home");
 
   const pages: Record<Page, JSX.Element> = {
-    home: <HomePage />,
-    games: <GamesPage />,
+    home: <HomePage onPlay={() => setPage("fastcount")} />,
+    games: <GamesPage onPlay={() => setPage("fastcount")} />,
     achievements: <AchievementsPage />,
     rating: <RatingPage />,
     settings: <SettingsPage />,
     help: <HelpPage />,
+    fastcount: <FastCountGame onBack={() => setPage("games")} />,
   };
 
   return (
@@ -666,11 +936,11 @@ export default function Index() {
         </div>
       </header>
 
-      <main className="px-4 pt-4 pb-28" key={page}>
+      <main className={`px-4 pt-4 ${page === "fastcount" ? "pb-6" : "pb-28"}`} key={page}>
         <div className="animate-fade-in max-w-lg mx-auto">{pages[page]}</div>
       </main>
 
-      <NavBar active={page} onChange={setPage} />
+      {page !== "fastcount" && <NavBar active={page} onChange={setPage} />}
     </div>
   );
 }
