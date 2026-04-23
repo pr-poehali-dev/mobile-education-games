@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 
-type Page = "home" | "games" | "achievements" | "rating" | "settings" | "help" | "fastcount" | "wordbattle";
+type Page = "home" | "games" | "achievements" | "rating" | "settings" | "help" | "fastcount" | "wordbattle" | "vowelgame";
 
 const SUBJECTS = [
   { id: "math", name: "Математика", emoji: "🧮", color: "hsl(var(--game-blue))", xp: 840, maxXp: 1000, level: 7 },
@@ -25,7 +25,7 @@ const ACHIEVEMENTS = [
 const GAMES = [
   { id: 1, title: "Быстрый счёт", subject: "Математика", emoji: "⚡", color: "from-blue-600 to-cyan-500", difficulty: "Лёгкий", xpReward: 50, players: "1 игрок" },
   { id: 2, title: "Словесный бой", subject: "Русский язык", emoji: "⚔️", color: "from-pink-600 to-rose-500", difficulty: "Средний", xpReward: 80, players: "1–2 игрока" },
-  { id: 3, title: "Планета знаний", subject: "Окруж. мир", emoji: "🌍", color: "from-green-600 to-emerald-500", difficulty: "Средний", xpReward: 70, players: "1 игрок" },
+  { id: 3, title: "Безударные гласные", subject: "Русский язык", emoji: "✏️", color: "from-green-600 to-emerald-500", difficulty: "Средний", xpReward: 70, players: "1 игрок" },
   { id: 4, title: "Буквы в бою", subject: "Английский", emoji: "🔤", color: "from-purple-600 to-violet-500", difficulty: "Сложный", xpReward: 120, players: "1–4 игрока" },
   { id: 5, title: "Читай-ка", subject: "Чтение", emoji: "📖", color: "from-orange-600 to-amber-500", difficulty: "Лёгкий", xpReward: 40, players: "1 игрок" },
   { id: 6, title: "Математический квест", subject: "Математика", emoji: "🗺️", color: "from-indigo-600 to-blue-500", difficulty: "Сложный", xpReward: 150, players: "1 игрок" },
@@ -255,9 +255,9 @@ function HomePage({ onPlay }: { onPlay: () => void }) {
   );
 }
 
-function GamesPage({ onPlayFast, onPlayWord }: { onPlayFast: () => void; onPlayWord: () => void }) {
-  const handlers: Record<number, (() => void) | undefined> = { 1: onPlayFast, 2: onPlayWord };
-  const active = new Set([1, 2]);
+function GamesPage({ onPlayFast, onPlayWord, onPlayVowel }: { onPlayFast: () => void; onPlayWord: () => void; onPlayVowel: () => void }) {
+  const handlers: Record<number, (() => void) | undefined> = { 1: onPlayFast, 2: onPlayWord, 3: onPlayVowel };
+  const active = new Set([1, 2, 3]);
 
   return (
     <div className="space-y-4">
@@ -1256,18 +1256,325 @@ function WordBattleGame({ onBack }: { onBack: () => void }) {
   );
 }
 
+// ─── БЕЗУДАРНЫЕ ГЛАСНЫЕ ───────────────────────────────────────────────────────
+
+type VowelEntry = {
+  word: string;        // полное слово
+  blank: number;       // индекс буквы, которую скрываем
+  answer: string;      // правильная гласная
+  wrong: string[];     // неправильные варианты гласных
+  check: string;       // проверочное слово
+  hint: string;        // подсказка-правило
+};
+
+const VOWEL_BANK: VowelEntry[] = [
+  // а/о
+  { word: "трава",    blank: 2, answer: "а", wrong: ["о"],        check: "тра́вы",    hint: "Проверь: тра́вы — слышим А" },
+  { word: "волна",    blank: 1, answer: "о", wrong: ["а"],        check: "во́лны",    hint: "Проверь: во́лны — слышим О" },
+  { word: "гора",     blank: 1, answer: "о", wrong: ["а"],        check: "го́ры",     hint: "Проверь: го́ры — слышим О" },
+  { word: "сосна",    blank: 1, answer: "о", wrong: ["а"],        check: "со́сны",    hint: "Проверь: со́сны — слышим О" },
+  { word: "моря",     blank: 1, answer: "о", wrong: ["а"],        check: "мо́ре",     hint: "Проверь: мо́ре — слышим О" },
+  { word: "вода",     blank: 1, answer: "о", wrong: ["а"],        check: "во́ды",     hint: "Проверь: во́ды — слышим О" },
+  { word: "зима",     blank: 1, answer: "и", wrong: ["е"],        check: "зи́мы",     hint: "Проверь: зи́мы — слышим И" },
+  { word: "земля",    blank: 1, answer: "е", wrong: ["и"],        check: "зе́мли",    hint: "Проверь: зе́мли — слышим Е" },
+  { word: "леса",     blank: 1, answer: "е", wrong: ["и"],        check: "ле́с",      hint: "Проверь: ле́с — слышим Е" },
+  { word: "река",     blank: 1, answer: "е", wrong: ["и"],        check: "ре́ки",     hint: "Проверь: ре́ки — слышим Е" },
+  // е/и
+  { word: "письмо",   blank: 1, answer: "и", wrong: ["е"],        check: "пи́сьма",   hint: "Проверь: пи́сьма — слышим И" },
+  { word: "весна",    blank: 1, answer: "е", wrong: ["и"],        check: "вёсны",    hint: "Проверь: вёсны — слышим Е" },
+  { word: "гнездо",   blank: 2, answer: "е", wrong: ["и"],        check: "гнёзда",   hint: "Проверь: гнёзда — слышим Е" },
+  { word: "дела",     blank: 1, answer: "е", wrong: ["и"],        check: "де́ло",     hint: "Проверь: де́ло — слышим Е" },
+  { word: "лиса",     blank: 1, answer: "и", wrong: ["е"],        check: "ли́сы",     hint: "Проверь: ли́сы — слышим И" },
+  { word: "грибы",    blank: 2, answer: "и", wrong: ["е"],        check: "гриб",     hint: "Проверь: гриб — слышим И" },
+  { word: "цветок",   blank: 1, answer: "в", wrong: [""],         check: "",         hint: "" }, // placeholder, заменим
+  { word: "дождей",   blank: 1, answer: "о", wrong: ["а"],        check: "до́ждь",    hint: "Проверь: до́ждь — слышим О" },
+  { word: "стена",    blank: 2, answer: "е", wrong: ["и"],        check: "сте́ны",    hint: "Проверь: сте́ны — слышим Е" },
+  { word: "цветы",    blank: 1, answer: "е", wrong: ["и"],        check: "цвет",     hint: "Проверь: цвет — слышим Е" },
+  // о/а
+  { word: "колосья",  blank: 1, answer: "о", wrong: ["а"],        check: "ко́лос",    hint: "Проверь: ко́лос — слышим О" },
+  { word: "садовник", blank: 1, answer: "а", wrong: ["о"],        check: "сад",      hint: "Проверь: сад — слышим А" },
+  { word: "полоса",   blank: 1, answer: "о", wrong: ["а"],        check: "по́лосы",   hint: "Проверь: по́лосы — слышим О" },
+  { word: "ворона",   blank: 1, answer: "о", wrong: ["а"],        check: "во́рон",    hint: "Проверь: во́рон — слышим О" },
+  { word: "сорока",   blank: 1, answer: "о", wrong: ["а"],        check: "со́роки",   hint: "Проверь: со́роки — слышим О" },
+  { word: "корова",   blank: 1, answer: "о", wrong: ["а"],        check: "ко́ровы",   hint: "Проверь: ко́ровы — слышим О" },
+  { word: "молоко",   blank: 1, answer: "о", wrong: ["а"],        check: "мо́лока",   hint: "Проверь: мо́лока — слышим О" },
+  { word: "погода",   blank: 1, answer: "о", wrong: ["а"],        check: "по́года",   hint: "Проверь: по́года — слышим О" },
+  { word: "дорога",   blank: 1, answer: "о", wrong: ["а"],        check: "до́роги",   hint: "Проверь: до́роги — слышим О" },
+  { word: "голова",   blank: 1, answer: "о", wrong: ["а"],        check: "го́ловы",   hint: "Проверь: го́ловы — слышим О" },
+].filter(e => e.answer.length === 1 && e.wrong.every(w => w.length === 1));
+
+// Строим список «чистых» заданий (без плейсхолдеров)
+const CLEAN_VOWEL_BANK = VOWEL_BANK.filter(e => e.answer !== "в");
+
+function buildVowelQuestion(entry: VowelEntry) {
+  const options = shuffleArray([entry.answer, ...entry.wrong]).slice(0, 2);
+  // если нужно добавить третий вариант из соседних гласных
+  const all = ["а", "о", "е", "и", "у", "я", "ё", "ю"];
+  while (options.length < 3) {
+    const extra = all[Math.floor(Math.random() * all.length)];
+    if (!options.includes(extra)) options.push(extra);
+  }
+  return { ...entry, options: shuffleArray(options) };
+}
+
+type VowelQuestion = ReturnType<typeof buildVowelQuestion>;
+
+function renderWordWithBlank(word: string, blank: number, chosen: string | null, answer: string, feedback: "correct" | "wrong" | null) {
+  return word.split("").map((ch, i) => {
+    if (i !== blank) {
+      return <span key={i} className="font-russo text-4xl text-foreground">{ch}</span>;
+    }
+    let color = "hsl(var(--primary))";
+    if (feedback === "correct") color = "hsl(var(--game-green))";
+    if (feedback === "wrong") color = "hsl(var(--game-red))";
+    return (
+      <span key={i} className="font-russo text-4xl border-b-4 min-w-[1.5ch] inline-block text-center transition-all duration-300"
+        style={{ borderColor: color, color: chosen ? color : "transparent" }}>
+        {chosen ?? "_"}
+      </span>
+    );
+  });
+}
+
+function VowelGame({ onBack }: { onBack: () => void }) {
+  const TOTAL = 10;
+
+  const [phase, setPhase] = useState<GamePhase>("intro");
+  const [questions, setQuestions] = useState<VowelQuestion[]>([]);
+  const [idx, setIdx] = useState(0);
+  const [score, setScore] = useState(0);
+  const [xp, setXp] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [maxCombo, setMaxCombo] = useState(0);
+  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [showHint, setShowHint] = useState(false);
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [showCheck, setShowCheck] = useState(false);
+
+  function startGame() {
+    const picked = shuffleArray(CLEAN_VOWEL_BANK).slice(0, TOTAL).map(buildVowelQuestion);
+    setQuestions(picked);
+    setIdx(0); setScore(0); setXp(0); setCombo(0); setMaxCombo(0);
+    setFeedback(null); setChosen(null); setShowHint(false); setHintsUsed(0); setShowCheck(false);
+    setPhase("playing");
+  }
+
+  function handleAnswer(opt: string) {
+    if (feedback !== null) return;
+    const q = questions[idx];
+    const isCorrect = opt === q.answer;
+    setChosen(opt);
+    setFeedback(isCorrect ? "correct" : "wrong");
+    if (isCorrect) {
+      const newCombo = combo + 1;
+      setCombo(newCombo);
+      if (newCombo > maxCombo) setMaxCombo(newCombo);
+      setScore(s => s + 1);
+      setXp(x => x + (newCombo >= 3 ? 15 : showHint ? 5 : 10));
+    } else {
+      setCombo(0);
+      setShowCheck(true);
+    }
+    setTimeout(() => {
+      if (idx + 1 >= questions.length) { setPhase("result"); return; }
+      setIdx(i => i + 1);
+      setFeedback(null); setChosen(null); setShowHint(false); setShowCheck(false);
+    }, 1100);
+  }
+
+  if (phase === "intro") return (
+    <div className="space-y-5 animate-fade-in">
+      <button onClick={onBack} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm">
+        <Icon name="ArrowLeft" size={18} /> Назад
+      </button>
+      <div className="game-card p-6 text-center stars-bg">
+        <div className="text-6xl mb-3 animate-float">🌟</div>
+        <h2 className="font-russo text-2xl text-foreground mb-1">Безударные гласные</h2>
+        <p className="text-muted-foreground text-sm mb-5">Вставь пропущенную букву в корне слова</p>
+
+        <div className="bg-muted/40 rounded-2xl p-4 mb-5 text-left space-y-2">
+          <p className="font-bold text-sm text-foreground mb-1">Правило:</p>
+          <p className="text-xs text-muted-foreground">Безударную гласную в корне нужно проверить — подобрать однокоренное слово, где эта гласная стоит под ударением.</p>
+          <div className="mt-2 p-3 rounded-xl text-center" style={{ background: "hsl(var(--game-green) / 0.1)", border: "1px solid hsl(var(--game-green) / 0.3)" }}>
+            <p className="font-russo text-base text-foreground">тр<span style={{ color: "hsl(var(--game-orange))" }}>_</span>ва → тр<span style={{ color: "hsl(var(--game-green))" }}>а́</span>вы ✓</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          {[{ emoji: "✏️", label: "10 слов" }, { emoji: "💡", label: "Подсказки" }, { emoji: "⚡", label: "до 150 XP" }].map(s => (
+            <div key={s.label} className="bg-muted/50 rounded-2xl p-3 text-center">
+              <div className="text-2xl mb-1">{s.emoji}</div>
+              <p className="text-xs font-bold text-foreground">{s.label}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-muted/30 rounded-2xl p-3 mb-5 text-left space-y-1.5">
+          <p className="text-xs text-muted-foreground flex items-center gap-2"><span>✅</span> Выбери правильную гласную из вариантов</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-2"><span>💡</span> Подсказка покажет проверочное слово (-5 XP)</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-2"><span>🔥</span> Комбо 3+ = бонус +5 XP</p>
+        </div>
+
+        <button onClick={startGame}
+          className="w-full py-4 rounded-2xl font-russo text-lg text-white transition-all hover:scale-105 active:scale-95"
+          style={{ background: "linear-gradient(135deg, hsl(var(--game-green)), hsl(142 60% 35%))" }}>
+          Начать!
+        </button>
+      </div>
+    </div>
+  );
+
+  if (phase === "result") {
+    const acc = Math.round((score / questions.length) * 100);
+    const stars = score >= 9 ? 3 : score >= 6 ? 2 : score >= 3 ? 1 : 0;
+    return (
+      <div className="space-y-5 animate-fade-in">
+        <div className="game-card p-6 text-center stars-bg">
+          <div className="text-6xl mb-2 animate-bounce-in">{stars === 3 ? "🏆" : stars === 2 ? "🥈" : stars === 1 ? "🥉" : "😅"}</div>
+          <div className="flex justify-center gap-1 mb-3">
+            {[1, 2, 3].map(s => <span key={s} className={`text-3xl ${s <= stars ? "opacity-100" : "opacity-20"}`}>⭐</span>)}
+          </div>
+          <h2 className="font-russo text-2xl text-foreground mb-1">
+            {stars === 3 ? "Грамотей!" : stars === 2 ? "Молодец!" : stars === 1 ? "Неплохо!" : "Тренируйся ещё!"}
+          </h2>
+          <p className="text-muted-foreground text-sm mb-5">Безударные гласные в корне слова</p>
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            {[
+              { label: "Верных ответов", value: `${score}/${questions.length}`, color: "hsl(var(--game-green))" },
+              { label: "Точность", value: `${acc}%`, color: "hsl(var(--game-blue))" },
+              { label: "Макс. комбо", value: `x${maxCombo}`, color: "hsl(var(--game-orange))" },
+              { label: "XP заработано", value: `+${xp}`, color: "hsl(var(--primary))" },
+            ].map(s => (
+              <div key={s.label} className="bg-muted/50 rounded-2xl p-3 text-center">
+                <p className="font-russo text-xl" style={{ color: s.color }}>{s.value}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          {hintsUsed > 0 && <p className="text-xs text-muted-foreground mb-4">💡 Использовано подсказок: {hintsUsed}</p>}
+          <div className="flex gap-3">
+            <button onClick={onBack} className="flex-1 py-3 rounded-2xl font-bold text-sm text-foreground border border-border hover:bg-muted transition-colors">
+              К играм
+            </button>
+            <button onClick={startGame}
+              className="flex-1 py-3 rounded-2xl font-russo text-sm text-white transition-all hover:scale-105 active:scale-95"
+              style={{ background: "linear-gradient(135deg, hsl(var(--game-green)), hsl(142 60% 35%))" }}>
+              Ещё раз
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const q = questions[idx];
+
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-sm">
+          <Icon name="ArrowLeft" size={16} /> Выйти
+        </button>
+        <div className="flex items-center gap-3">
+          {combo >= 3 && <span className="text-xs font-bold text-game-orange animate-pulse">🔥 Комбо x{combo}!</span>}
+          <span className="text-sm font-bold text-primary">+{xp} XP</span>
+        </div>
+      </div>
+
+      {/* Прогресс */}
+      <div className="game-card p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-bold text-muted-foreground">Слово {idx + 1}/{questions.length}</span>
+          <span className="text-xs font-bold px-2.5 py-1 rounded-full text-white"
+            style={{ background: "hsl(var(--game-green))" }}>
+            Рус. язык
+          </span>
+        </div>
+        <div className="xp-bar h-2.5 w-full">
+          <div className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${(idx / questions.length) * 100}%`, background: "hsl(var(--game-green))" }} />
+        </div>
+      </div>
+
+      {/* Слово с пропуском */}
+      <div className="game-card p-6 text-center stars-bg relative">
+        <p className="text-muted-foreground text-sm mb-4 font-nunito">Вставь пропущенную букву:</p>
+        <div className="flex items-center justify-center gap-0.5 mb-4 flex-wrap">
+          {renderWordWithBlank(q.word, q.blank, chosen, q.answer, feedback)}
+        </div>
+
+        {/* Подсказка / проверочное слово */}
+        {(showHint || showCheck) ? (
+          <div className="animate-fade-in rounded-xl p-2.5 text-center"
+            style={{
+              background: showCheck && feedback === "wrong"
+                ? "hsl(var(--game-red) / 0.1)"
+                : "hsl(var(--game-orange) / 0.1)",
+              border: `1px solid ${showCheck && feedback === "wrong" ? "hsl(var(--game-red) / 0.3)" : "hsl(var(--game-orange) / 0.3)"}`,
+            }}>
+            <p className="text-xs font-bold mb-0.5" style={{ color: showCheck && feedback === "wrong" ? "hsl(var(--game-red))" : "hsl(var(--game-orange))" }}>
+              {showCheck && feedback === "wrong" ? "✗ Правильно:" : "💡 Подсказка:"}
+            </p>
+            <p className="font-russo text-lg text-foreground">{q.check}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{q.hint}</p>
+          </div>
+        ) : (
+          <button
+            onClick={() => { setShowHint(true); setHintsUsed(h => h + 1); }}
+            disabled={feedback !== null}
+            className="flex items-center gap-1.5 mx-auto px-3 py-1.5 rounded-xl text-sm font-bold transition-all hover:scale-105 disabled:opacity-40 disabled:cursor-default"
+            style={{ background: "hsl(var(--game-orange) / 0.15)", color: "hsl(var(--game-orange))" }}>
+            <Icon name="Lightbulb" size={15} /> Показать проверочное слово
+          </button>
+        )}
+
+        {/* Точки прогресса */}
+        <div className="flex justify-center gap-1 mt-4">
+          {Array.from({ length: questions.length }).map((_, i) => (
+            <div key={i} className="w-2 h-2 rounded-full transition-all"
+              style={{ background: i < idx ? "hsl(var(--game-green))" : i === idx ? "hsl(var(--game-green))" : "hsl(var(--muted))" }} />
+          ))}
+        </div>
+      </div>
+
+      {/* Варианты ответов */}
+      <div className="grid grid-cols-3 gap-3">
+        {q.options.map((opt) => {
+          const isSel = chosen === opt;
+          const isCorrect = opt === q.answer;
+          let bg = "hsl(var(--card))";
+          let border = "hsl(var(--border))";
+          let textColor = "hsl(var(--foreground))";
+          if (isSel && feedback === "correct") { bg = "hsl(var(--game-green) / 0.15)"; border = "hsl(var(--game-green))"; textColor = "hsl(var(--game-green))"; }
+          if (isSel && feedback === "wrong")   { bg = "hsl(var(--game-red) / 0.15)";   border = "hsl(var(--game-red))";   textColor = "hsl(var(--game-red))"; }
+          if (!isSel && feedback !== null && isCorrect) { bg = "hsl(var(--game-green) / 0.1)"; border = "hsl(var(--game-green) / 0.6)"; }
+          return (
+            <button key={opt} onClick={() => handleAnswer(opt)} disabled={feedback !== null}
+              className="py-5 rounded-2xl font-russo text-3xl transition-all duration-200 hover:scale-110 active:scale-95 disabled:cursor-default border-2"
+              style={{ background: bg, borderColor: border, color: textColor }}>
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Index() {
   const [page, setPage] = useState<Page>("home");
 
   const pages: Record<Page, JSX.Element> = {
     home: <HomePage onPlay={() => setPage("fastcount")} />,
-    games: <GamesPage onPlayFast={() => setPage("fastcount")} onPlayWord={() => setPage("wordbattle")} />,
+    games: <GamesPage onPlayFast={() => setPage("fastcount")} onPlayWord={() => setPage("wordbattle")} onPlayVowel={() => setPage("vowelgame")} />,
     achievements: <AchievementsPage />,
     rating: <RatingPage />,
     settings: <SettingsPage />,
     help: <HelpPage />,
     fastcount: <FastCountGame onBack={() => setPage("games")} />,
     wordbattle: <WordBattleGame onBack={() => setPage("games")} />,
+    vowelgame: <VowelGame onBack={() => setPage("games")} />,
   };
 
   return (
@@ -1297,11 +1604,11 @@ export default function Index() {
         </div>
       </header>
 
-      <main className={`px-4 pt-4 ${page === "fastcount" || page === "wordbattle" ? "pb-6" : "pb-28"}`} key={page}>
+      <main className={`px-4 pt-4 ${["fastcount","wordbattle","vowelgame"].includes(page) ? "pb-6" : "pb-28"}`} key={page}>
         <div className="animate-fade-in max-w-lg mx-auto">{pages[page]}</div>
       </main>
 
-      {page !== "fastcount" && page !== "wordbattle" && <NavBar active={page} onChange={setPage} />}
+      {!["fastcount","wordbattle","vowelgame"].includes(page) && <NavBar active={page} onChange={setPage} />}
     </div>
   );
 }
