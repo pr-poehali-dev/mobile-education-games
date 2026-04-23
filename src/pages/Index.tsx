@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 
-type Page = "home" | "games" | "achievements" | "rating" | "settings" | "help" | "fastcount";
+type Page = "home" | "games" | "achievements" | "rating" | "settings" | "help" | "fastcount" | "wordbattle";
 
 const SUBJECTS = [
   { id: "math", name: "Математика", emoji: "🧮", color: "hsl(var(--game-blue))", xp: 840, maxXp: 1000, level: 7 },
@@ -255,7 +255,10 @@ function HomePage({ onPlay }: { onPlay: () => void }) {
   );
 }
 
-function GamesPage({ onPlay }: { onPlay: () => void }) {
+function GamesPage({ onPlayFast, onPlayWord }: { onPlayFast: () => void; onPlayWord: () => void }) {
+  const handlers: Record<number, (() => void) | undefined> = { 1: onPlayFast, 2: onPlayWord };
+  const active = new Set([1, 2]);
+
   return (
     <div className="space-y-4">
       <div>
@@ -263,36 +266,37 @@ function GamesPage({ onPlay }: { onPlay: () => void }) {
         <p className="text-muted-foreground text-sm mt-1">Учись играя — зарабатывай очки!</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {GAMES.map((game, i) => (
-          <div
-            key={game.id}
-            onClick={game.id === 1 ? onPlay : undefined}
-            className={`game-card overflow-hidden animate-fade-in ${game.id === 1 ? "cursor-pointer" : "cursor-default opacity-80"}`}
-            style={{ animationDelay: `${i * 80}ms` }}
-          >
+        {GAMES.map((game, i) => {
+          const isActive = active.has(game.id);
+          return (
             <div
-              className={`h-24 bg-gradient-to-br ${game.color} flex items-center justify-center text-5xl relative`}
+              key={game.id}
+              onClick={handlers[game.id]}
+              className={`game-card overflow-hidden animate-fade-in ${isActive ? "cursor-pointer" : "cursor-default opacity-70"}`}
+              style={{ animationDelay: `${i * 80}ms` }}
             >
-              {game.emoji}
-              {game.id !== 1 && (
-                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                  <span className="text-white text-xs font-bold bg-black/40 px-2 py-1 rounded-full">Скоро</span>
-                </div>
-              )}
-            </div>
-            <div className="p-3">
-              <h3 className="font-russo text-sm text-foreground leading-tight">{game.title}</h3>
-              <p className="text-muted-foreground text-[11px] mt-0.5">{game.subject}</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground">
-                  {game.difficulty}
-                </span>
-                <span className="text-[11px] font-bold text-game-green">+{game.xpReward} XP</span>
+              <div className={`h-24 bg-gradient-to-br ${game.color} flex items-center justify-center text-5xl relative`}>
+                {game.emoji}
+                {!isActive && (
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                    <span className="text-white text-xs font-bold bg-black/40 px-2 py-1 rounded-full">Скоро</span>
+                  </div>
+                )}
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">{game.players}</p>
+              <div className="p-3">
+                <h3 className="font-russo text-sm text-foreground leading-tight">{game.title}</h3>
+                <p className="text-muted-foreground text-[11px] mt-0.5">{game.subject}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground">
+                    {game.difficulty}
+                  </span>
+                  <span className="text-[11px] font-bold text-game-green">+{game.xpReward} XP</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">{game.players}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -896,17 +900,374 @@ function FastCountGame({ onBack }: { onBack: () => void }) {
   );
 }
 
+type WordEntry = { word: string; wrong: string[]; hint: string; grade: 1 | 2 | 3 | 4 };
+
+const WORD_BANK: WordEntry[] = [
+  // 1 класс
+  { word: "ворона", wrong: ["варона", "варана", "ворана"], hint: "Чёрно-белая птица", grade: 1 },
+  { word: "молоко", wrong: ["малако", "молако", "малоко"], hint: "Белый напиток от коровы", grade: 1 },
+  { word: "собака", wrong: ["сабака", "собока", "сабока"], hint: "Верный друг человека", grade: 1 },
+  { word: "ребята", wrong: ["рибята", "рибета", "ребета"], hint: "Дети, друзья", grade: 1 },
+  { word: "учитель", wrong: ["учитил", "учытель", "учытил"], hint: "Тот, кто учит в школе", grade: 1 },
+  { word: "тетрадь", wrong: ["титрадь", "тетрать", "титрать"], hint: "Пишут в ней уроки", grade: 1 },
+  { word: "карандаш", wrong: ["корандаш", "каранташ", "коранташ"], hint: "Им рисуют и пишут", grade: 1 },
+  { word: "девочка", wrong: ["дивочка", "девачка", "дивачка"], hint: "Маленькая женщина", grade: 1 },
+  { word: "мальчик", wrong: ["малчик", "мальчек", "малчек"], hint: "Маленький мужчина", grade: 1 },
+  { word: "медведь", wrong: ["медвидь", "медведть", "мидведь"], hint: "Бурый хозяин леса", grade: 1 },
+  // 2 класс
+  { word: "берёза", wrong: ["бирёза", "берёса", "бирёса"], hint: "Белоствольное дерево России", grade: 2 },
+  { word: "корова", wrong: ["карова", "корава", "карава"], hint: "Даёт молоко на ферме", grade: 2 },
+  { word: "деревня", wrong: ["диревня", "деривня", "диривня"], hint: "Маленький населённый пункт", grade: 2 },
+  { word: "пальто", wrong: ["палто", "пальта", "палта"], hint: "Верхняя тёплая одежда", grade: 2 },
+  { word: "Россия", wrong: ["Расия", "Рассия", "Расея"], hint: "Наша Родина", grade: 2 },
+  { word: "Москва", wrong: ["Масква", "Москова", "Маскова"], hint: "Столица нашей страны", grade: 2 },
+  { word: "народ", wrong: ["нарот", "нород", "норот"], hint: "Большая группа людей", grade: 2 },
+  { word: "завод", wrong: ["завот", "зовод", "зовот"], hint: "Место, где производят товары", grade: 2 },
+  { word: "огород", wrong: ["огарод", "агород", "агарод"], hint: "Где растут овощи", grade: 2 },
+  { word: "сорока", wrong: ["сарока", "сорака", "сарака"], hint: "Птица-белобока", grade: 2 },
+  // 3 класс
+  { word: "восток", wrong: ["восток", "васток", "востак"], hint: "Одна из сторон света", grade: 3 },
+  { word: "горизонт", wrong: ["гаризонт", "горизант", "гаризант"], hint: "Линия, где небо встречает землю", grade: 3 },
+  { word: "картина", wrong: ["картена", "картына", "картена"], hint: "Произведение живописи", grade: 3 },
+  { word: "пожалуйста", wrong: ["пожалста", "пожалуста", "пажалуйста"], hint: "Слово вежливости", grade: 3 },
+  { word: "телефон", wrong: ["тилефон", "телифон", "тилифон"], hint: "Устройство для звонков", grade: 3 },
+  { word: "библиотека", wrong: ["библиатека", "библеотека", "библеатека"], hint: "Место, где хранятся книги", grade: 3 },
+  { word: "экскурсия", wrong: ["экскурция", "ескурсия", "экскурсея"], hint: "Поездка с целью осмотра", grade: 3 },
+  { word: "хозяйство", wrong: ["хазяйство", "хозяество", "хазяество"], hint: "Дом и всё имущество", grade: 3 },
+  { word: "лестница", wrong: ["лесница", "лестнеца", "лесница"], hint: "По ней поднимаются этажи", grade: 3 },
+  { word: "праздник", wrong: ["празник", "праздек", "пращник"], hint: "Особый торжественный день", grade: 3 },
+  // 4 класс
+  { word: "территория", wrong: ["терытория", "территорея", "терытарея"], hint: "Часть земной поверхности", grade: 4 },
+  { word: "аккуратно", wrong: ["акуратно", "аккуратна", "акуратна"], hint: "Очень чисто и ровно", grade: 4 },
+  { word: "путешествие", wrong: ["путишествие", "путешествее", "путишествее"], hint: "Поездка в далёкие места", grade: 4 },
+  { word: "впечатление", wrong: ["впичатление", "впечатленее", "впичатленее"], hint: "То, что запомнилось", grade: 4 },
+  { word: "расстояние", wrong: ["расстаяние", "расстояниe", "рассстояние"], hint: "Промежуток между двумя точками", grade: 4 },
+  { word: "отечество", wrong: ["атечество", "отичество", "атичество"], hint: "Родная страна", grade: 4 },
+  { word: "человечество", wrong: ["чиловечество", "человечиство", "чиловечиство"], hint: "Все люди на Земле", grade: 4 },
+  { word: "революция", wrong: ["рэволюция", "революцея", "рэволюцея"], hint: "Коренное изменение в обществе", grade: 4 },
+  { word: "конституция", wrong: ["кансытуция", "конституцея", "кансытуцея"], hint: "Главный закон страны", grade: 4 },
+  { word: "президент", wrong: ["президэнт", "призидент", "призидэнт"], hint: "Глава государства", grade: 4 },
+];
+
+const GRADE_LABELS: Record<number, string> = { 1: "1 класс", 2: "2 класс", 3: "3 класс", 4: "4 класс" };
+const GRADE_COLORS: Record<number, string> = {
+  1: "hsl(var(--game-green))",
+  2: "hsl(var(--game-blue))",
+  3: "hsl(var(--game-orange))",
+  4: "hsl(var(--game-pink))",
+};
+
+function shuffleArray<T>(arr: T[]): T[] {
+  return [...arr].sort(() => Math.random() - 0.5);
+}
+
+function buildWordQuestion(entry: WordEntry) {
+  const options = shuffleArray([entry.word, ...entry.wrong.slice(0, 3)]);
+  return { ...entry, options };
+}
+
+type WordQuestion = ReturnType<typeof buildWordQuestion>;
+
+function WordBattleGame({ onBack }: { onBack: () => void }) {
+  const TOTAL_QUESTIONS = 10;
+
+  const [phase, setPhase] = useState<GamePhase>("intro");
+  const [selectedGrade, setSelectedGrade] = useState<1 | 2 | 3 | 4>(2);
+  const [questions, setQuestions] = useState<WordQuestion[]>([]);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [score, setScore] = useState(0);
+  const [xpEarned, setXpEarned] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [maxCombo, setMaxCombo] = useState(0);
+  const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [showHint, setShowHint] = useState(false);
+  const [hintsUsed, setHintsUsed] = useState(0);
+
+  function startGame() {
+    const pool = WORD_BANK.filter((w) => w.grade === selectedGrade);
+    const picked = shuffleArray(pool).slice(0, TOTAL_QUESTIONS);
+    const qs = picked.map(buildWordQuestion);
+    setQuestions(qs);
+    setCurrentIdx(0);
+    setScore(0);
+    setXpEarned(0);
+    setCombo(0);
+    setMaxCombo(0);
+    setFeedback(null);
+    setSelectedOption(null);
+    setShowHint(false);
+    setHintsUsed(0);
+    setPhase("playing");
+  }
+
+  function handleAnswer(opt: string) {
+    if (feedback !== null) return;
+    const q = questions[currentIdx];
+    const isCorrect = opt === q.word;
+    setSelectedOption(opt);
+    setFeedback(isCorrect ? "correct" : "wrong");
+
+    if (isCorrect) {
+      const newCombo = combo + 1;
+      setCombo(newCombo);
+      if (newCombo > maxCombo) setMaxCombo(newCombo);
+      const bonus = newCombo >= 3 ? 15 : showHint ? 5 : 10;
+      setScore((s) => s + 1);
+      setXpEarned((x) => x + bonus);
+    } else {
+      setCombo(0);
+    }
+
+    setTimeout(() => {
+      if (currentIdx + 1 >= questions.length) {
+        setPhase("result");
+      } else {
+        setCurrentIdx((i) => i + 1);
+        setFeedback(null);
+        setSelectedOption(null);
+        setShowHint(false);
+      }
+    }, 900);
+  }
+
+  function useHint() {
+    if (showHint) return;
+    setShowHint(true);
+    setHintsUsed((h) => h + 1);
+  }
+
+  if (phase === "intro") {
+    return (
+      <div className="space-y-5 animate-fade-in">
+        <button onClick={onBack} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm">
+          <Icon name="ArrowLeft" size={18} /> Назад
+        </button>
+        <div className="game-card p-6 text-center stars-bg">
+          <div className="text-6xl mb-3 animate-float">⚔️</div>
+          <h2 className="font-russo text-2xl text-foreground mb-1">Словесный бой</h2>
+          <p className="text-muted-foreground text-sm mb-5">Выбери правильное написание словарных слов</p>
+
+          <p className="font-russo text-sm text-muted-foreground mb-3">ВЫБЕРИ КЛАСС</p>
+          <div className="grid grid-cols-4 gap-2 mb-5">
+            {([1, 2, 3, 4] as const).map((g) => (
+              <button
+                key={g}
+                onClick={() => setSelectedGrade(g)}
+                className="py-3 rounded-2xl font-russo text-sm transition-all"
+                style={{
+                  background: selectedGrade === g ? GRADE_COLORS[g] : "hsl(var(--muted))",
+                  color: selectedGrade === g ? "white" : "hsl(var(--muted-foreground))",
+                  transform: selectedGrade === g ? "scale(1.05)" : "scale(1)",
+                }}
+              >
+                {g}<span className="text-xs">кл</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-muted/40 rounded-2xl p-3 mb-5 text-left space-y-1.5">
+            <p className="text-xs text-muted-foreground flex items-center gap-2"><span>✅</span> Выбери правильное написание из 4 вариантов</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-2"><span>💡</span> Подсказка даётся за половину XP</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-2"><span>🔥</span> Комбо 3+ = бонус +5 XP за ответ</p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            {[
+              { emoji: "❓", label: "10 слов" },
+              { emoji: "💡", label: "Подсказки" },
+              { emoji: "⚡", label: "до 150 XP" },
+            ].map((s) => (
+              <div key={s.label} className="bg-muted/50 rounded-2xl p-3 text-center">
+                <div className="text-2xl mb-1">{s.emoji}</div>
+                <p className="text-xs font-bold text-foreground">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={startGame}
+            className="w-full py-4 rounded-2xl font-russo text-lg text-white transition-all hover:scale-105 active:scale-95"
+            style={{ background: "linear-gradient(135deg, hsl(var(--game-pink)), hsl(0 80% 55%))" }}
+          >
+            В бой!
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "result") {
+    const accuracy = Math.round((score / questions.length) * 100);
+    const stars = score >= 9 ? 3 : score >= 6 ? 2 : score >= 3 ? 1 : 0;
+    return (
+      <div className="space-y-5 animate-fade-in">
+        <div className="game-card p-6 text-center stars-bg">
+          <div className="text-6xl mb-2 animate-bounce-in">
+            {stars === 3 ? "🏆" : stars === 2 ? "🥈" : stars === 1 ? "🥉" : "😅"}
+          </div>
+          <div className="flex justify-center gap-1 mb-3">
+            {[1, 2, 3].map((s) => (
+              <span key={s} className={`text-3xl ${s <= stars ? "opacity-100" : "opacity-20"}`}>⭐</span>
+            ))}
+          </div>
+          <h2 className="font-russo text-2xl text-foreground mb-1">
+            {stars === 3 ? "Грамотей!" : stars === 2 ? "Молодец!" : stars === 1 ? "Неплохо!" : "Учись дальше!"}
+          </h2>
+          <p className="text-muted-foreground text-sm mb-5">{GRADE_LABELS[selectedGrade]} · Словарные слова</p>
+
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            {[
+              { label: "Верных ответов", value: `${score}/${questions.length}`, color: "hsl(var(--game-green))" },
+              { label: "Точность", value: `${accuracy}%`, color: "hsl(var(--game-blue))" },
+              { label: "Макс. комбо", value: `x${maxCombo}`, color: "hsl(var(--game-orange))" },
+              { label: "XP заработано", value: `+${xpEarned}`, color: "hsl(var(--primary))" },
+            ].map((s) => (
+              <div key={s.label} className="bg-muted/50 rounded-2xl p-3 text-center">
+                <p className="font-russo text-xl" style={{ color: s.color }}>{s.value}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          {hintsUsed > 0 && (
+            <p className="text-xs text-muted-foreground mb-4">💡 Использовано подсказок: {hintsUsed}</p>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={onBack}
+              className="flex-1 py-3 rounded-2xl font-bold text-sm text-foreground border border-border hover:bg-muted transition-colors"
+            >
+              К играм
+            </button>
+            <button
+              onClick={() => setPhase("intro")}
+              className="flex-1 py-3 rounded-2xl font-russo text-sm text-white transition-all hover:scale-105 active:scale-95"
+              style={{ background: "linear-gradient(135deg, hsl(var(--game-pink)), hsl(0 80% 55%))" }}
+            >
+              Ещё раз
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const q = questions[currentIdx];
+  const progress = ((currentIdx) / questions.length) * 100;
+
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-sm">
+          <Icon name="ArrowLeft" size={16} /> Выйти
+        </button>
+        <div className="flex items-center gap-3">
+          {combo >= 3 && (
+            <span className="text-xs font-bold text-game-orange animate-pulse">🔥 Комбо x{combo}!</span>
+          )}
+          <span className="text-sm font-bold text-primary">+{xpEarned} XP</span>
+        </div>
+      </div>
+
+      <div className="game-card p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-bold text-muted-foreground">
+            Слово {currentIdx + 1}/{questions.length}
+          </span>
+          <span
+            className="text-xs font-bold px-2.5 py-1 rounded-full text-white"
+            style={{ background: GRADE_COLORS[selectedGrade] }}
+          >
+            {GRADE_LABELS[selectedGrade]}
+          </span>
+        </div>
+        <div className="xp-bar h-2.5 w-full">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${progress}%`, background: GRADE_COLORS[selectedGrade] }}
+          />
+        </div>
+      </div>
+
+      <div className="game-card p-6 text-center stars-bg relative">
+        <p className="text-muted-foreground text-sm mb-3 font-nunito">Как пишется правильно?</p>
+        <div className="flex items-center justify-center gap-3 mb-2">
+          <p className="font-russo text-4xl text-foreground">???</p>
+          <button
+            onClick={useHint}
+            disabled={showHint || feedback !== null}
+            className={`p-2 rounded-xl transition-all ${
+              showHint ? "opacity-40 cursor-default" : "hover:scale-110 active:scale-95"
+            }`}
+            style={{ background: showHint ? "hsl(var(--muted))" : "hsl(var(--game-orange) / 0.2)", color: "hsl(var(--game-orange))" }}
+            title="Подсказка (-5 XP)"
+          >
+            <Icon name="Lightbulb" size={20} />
+          </button>
+        </div>
+        {showHint ? (
+          <p className="text-game-orange text-sm font-bold animate-fade-in">💡 {q.hint}</p>
+        ) : (
+          <p className="text-muted-foreground text-sm">Нажми 💡 для подсказки</p>
+        )}
+        <div className="flex justify-center gap-1 mt-3">
+          {Array.from({ length: questions.length }).map((_, i) => (
+            <div
+              key={i}
+              className="w-2 h-2 rounded-full transition-all"
+              style={{
+                background:
+                  i < currentIdx
+                    ? "hsl(var(--game-green))"
+                    : i === currentIdx
+                    ? GRADE_COLORS[selectedGrade]
+                    : "hsl(var(--muted))",
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {q.options.map((opt) => {
+          const isSelected = selectedOption === opt;
+          const isCorrect = opt === q.word;
+          let bg = "hsl(var(--card))";
+          let border = "hsl(var(--border))";
+          let textColor = "hsl(var(--foreground))";
+          if (isSelected && feedback === "correct") { bg = "hsl(var(--game-green) / 0.15)"; border = "hsl(var(--game-green))"; textColor = "hsl(var(--game-green))"; }
+          if (isSelected && feedback === "wrong") { bg = "hsl(var(--game-red) / 0.15)"; border = "hsl(var(--game-red))"; textColor = "hsl(var(--game-red))"; }
+          if (!isSelected && feedback !== null && isCorrect) { bg = "hsl(var(--game-green) / 0.1)"; border = "hsl(var(--game-green) / 0.6)"; }
+          return (
+            <button
+              key={opt}
+              onClick={() => handleAnswer(opt)}
+              disabled={feedback !== null}
+              className="py-4 px-3 rounded-2xl font-bold text-base transition-all duration-200 hover:scale-105 active:scale-95 disabled:cursor-default border-2 font-nunito"
+              style={{ background: bg, borderColor: border, color: textColor }}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Index() {
   const [page, setPage] = useState<Page>("home");
 
   const pages: Record<Page, JSX.Element> = {
     home: <HomePage onPlay={() => setPage("fastcount")} />,
-    games: <GamesPage onPlay={() => setPage("fastcount")} />,
+    games: <GamesPage onPlayFast={() => setPage("fastcount")} onPlayWord={() => setPage("wordbattle")} />,
     achievements: <AchievementsPage />,
     rating: <RatingPage />,
     settings: <SettingsPage />,
     help: <HelpPage />,
     fastcount: <FastCountGame onBack={() => setPage("games")} />,
+    wordbattle: <WordBattleGame onBack={() => setPage("games")} />,
   };
 
   return (
@@ -936,11 +1297,11 @@ export default function Index() {
         </div>
       </header>
 
-      <main className={`px-4 pt-4 ${page === "fastcount" ? "pb-6" : "pb-28"}`} key={page}>
+      <main className={`px-4 pt-4 ${page === "fastcount" || page === "wordbattle" ? "pb-6" : "pb-28"}`} key={page}>
         <div className="animate-fade-in max-w-lg mx-auto">{pages[page]}</div>
       </main>
 
-      {page !== "fastcount" && <NavBar active={page} onChange={setPage} />}
+      {page !== "fastcount" && page !== "wordbattle" && <NavBar active={page} onChange={setPage} />}
     </div>
   );
 }
